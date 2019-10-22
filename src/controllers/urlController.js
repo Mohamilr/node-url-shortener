@@ -1,61 +1,56 @@
-import UrlShorten from '../models/UrlShorten';
-import { DOMAIN_NAME } from '../config/constants';
+import UrlShorten from "../models/UrlShorten";
+import nanoid from "nanoid";
+import { DOMAIN_NAME } from "../config/constants";
+import { respondWithWarning } from '../helpers/responseHandler';
+import { getMetric } from '../middlewares/getMetrics';
 
 /**
- * This function trim a new url that hasn't been trimmed before
+ * This function trims a new url that hasn't been trimmed before
  * @param {object} req
  * @param {object} res
  * @returns {object} response object with trimmed url
  */
-export const trimUrl = (req, res) => {
-  UrlShorten.countDocuments({}, (error, count) => {
-    if (error)
-      return res.status(500).json({
-        error: error
-      });
+export const trimUrl = async (req, res) => {
+	try {
+		let {expiry_date, custom_url} = req.body;
 
-    const newClipCount = count + 1;
+    let newUrlCode;
 
-    //Create an alpha-numeric string representation of the count by converting it to base 36. (10 digits + 26 letters)
-    let newUrlCode = newClipCount.toString(36); //36 is the highest supported radix. 
-    if (newUrlCode.length < 4)
-      newUrlCode = 'yT' + newUrlCode; //Pad Url codes less that 4 characters with zeros.
-    const newTrim = new UrlShorten({ //Reassign the oldest deleted clip to the new long url.
-      long_url: req.strippedUrl,
-      clipped_url: `${DOMAIN_NAME}/${newUrlCode}`,
-      urlCode: newUrlCode,
-      created_by: req.cookies.userId,
-      click_count: 0
-    });
+    // this line is there because production server fails to detect our
+    // DOMAIN_NAME config variable
+    const domain_name = DOMAIN_NAME ? DOMAIN_NAME : 'trimly.tk'
 
-    newTrim.save((err, newTrim) => {
-      if (!err) {
-        res.status(500);
-        res.render('../src/views/index', { userClips: [], success: false, error: 'Server error' });
-      }
-      res.status(201);
-      UrlShorten.find({
-        created_by: req.cookies.userID //Find all clips created by this user.
-      })
-        .then((clips) => {
-          res.render('../src/views/index', { userClips: clips, success: true });
-        });
-    });
-  });
+		//If the user submitted a custom url, use it. This has been validated by an earlier middleware.
+		if (custom_url) newUrlCode = encodeURIComponent(custom_url); //Sanitize the string as a valid uri comp. first.
+		else newUrlCode = nanoid(5); //If no custom url is provided, generate a random one.
     
-}
+		const newTrim = new UrlShorten({
+			long_url: req.url,
+      clipped_url: `${domain_name}/${newUrlCode}`,
+			urlCode: newUrlCode,
+			created_by: req.cookies.userID
+		});
+		
+		// Date validation has been done already
+    newTrim.expiry_date = expiry_date ? new Date(expiry_date) : null;
 
-
-/**
- * This function delete a trimmed url
- * @param {object} req
- * @param {object} res
- * @returns {object} response object with trimmed url
- */
-export const deleteUrl = (req, res) => {
-  return;
-}
-
+		const trimmed = await newTrim.save()
+		
+    if (!trimmed) {
+      console.log("Failed to save new trim");
+			return respondWithWarning(res, 500, "Server error");
+		}
+		
+		res.status(201).json({
+			success: true,
+			payload: trimmed
+		});
+  } 
+  catch (err) {
+		console.log(err);
+    return respondWithWarning(res, 500, "Server error");
+  }
+};
 
 /**
  * This function gets original url by the trim code supplied as a parameter
@@ -66,39 +61,31 @@ export const deleteUrl = (req, res) => {
  */
 export const getUrlAndUpdateCount = async (req, res, next) => {
   try {
-    const {
-      urlCode
-    } = req.params;
-    const url = await Url.findOne({
-      urlCode
+    const { id } = req.params;
+    const url = await UrlShorten.findOne({
+      urlCode: id
     });
+    getMetric(url._id, req);
 
-    if (!url) {
-      return res.status(404).json({
-        status: 'error',
-        error: 'Url not found'
-      });
+    if(url.expiry_date){
+      const currentDate = new Date()
+      if(currentDate > url.expiry_date){
+        await UrlShorten.findByIdAndDelete(url._id)
+        return res.status(404).render('error');
+      }
     }
 
+    if (!url) {
+      return res.status(404).render('error');
+    }
     url.click_count += 1;
     await url.save();
-    return res.redirect(url.long_url);
-
+		
+		if(url.long_url.startsWith('http'))
+			return res.redirect(url.long_url);
+		else 
+			res.redirect(`http://${url.long_url}`);
   } catch (error) {
-    return res.status(500).json({
-      status: 'error',
-      error: error.message
-    });
+    return res.status(404).render('error');
   }
-}
-
-
-/**
- * This redirects user to main url
- * @param {object} req
- * @param {object} res
- * @returns {object} redirects to original url or 404 page if not found
- */
-export const redirectUrl = async (req, res, next) => {
-  return res.redirect(url.long_url);
-}
+};

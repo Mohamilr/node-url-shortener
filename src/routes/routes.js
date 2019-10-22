@@ -1,19 +1,28 @@
-import { checkUrl } from "../middlewares/middlewares";
-import {respondWithWarning} from '../helpers/responseHandler';
-import { 
-	renderLandingPage, validateOwnDomain, urlAlreadyTrimmedByUser, stripUrl
+import {
+  aboutPage,
+  renderLandingPage,
+  validateOwnDomain,
+  validateCookie,
+  urlAlreadyTrimmedByUser,
+  stripUrl,
+  customUrlExists
 } from "../middlewares/middlewares";
+import {
+  getUrlAndUpdateCount,
+  trimUrl,
+  deleteUrl,
+  redirectUrl
+} from "../controllers/urlController";
+import { getUrlClickMetrics } from '../controllers/metricsController';
 
-import { getUrlAndUpdateCount, trimUrl, deleteUrl, redirectUrl } from '../controllers/urlController';
+export const initRoutes = app => {
+  app.get("/", validateCookie, renderLandingPage);
+  app.get("/about", (req, res) => res.status(200).render("about"));
+  app.post("/", stripUrl, validateOwnDomain, urlAlreadyTrimmedByUser, customUrlExists, trimUrl);
+  app.get("/about", aboutPage);
 
-export const initRoutes = (app) => {
-	app.get('/', renderLandingPage);
+  app.get("/:id", getUrlAndUpdateCount);
 
-	app.post('/api/trim', stripUrl, validateOwnDomain, urlAlreadyTrimmedByUser, trimUrl);
-
-	app.delete('/api/trim/:id', deleteUrl);
-
-	app.get('/api/trim/:id', getUrlAndUpdateCount, redirectUrl);
-
-	app.all('*', (req, res) => (res.status(404).render('../src/views/error')));
-}
+  app.get('/metrics/:urlShortenId', getUrlClickMetrics);
+  app.all("*", (req, res) => res.status(404).render("error"));
+};
