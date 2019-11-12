@@ -72,20 +72,20 @@
 
 
           <div class="container col-md-12" id="clips-list-container">
+						<i class="scroll-indicator">Scroll &xrArr;</i>
             <div class="card click-metrics ">
               <table class="table ">
                 <thead>
                   <tr id="table-head ">
                     <th width="15% " scope="col "><span class="click-title ">Clicks</span> <span class="click-icon "><i class="fas fa-mouse-pointer fa-lg "></i></span></th>
-                    <th scope="col ">Original url</th>
                     <th scope="col ">Trimmed url</th>
-                    <th scope="col ">Expiry Date</th>
                     <th scope="col "></th>
-                    
-                  </tr>
-                </thead>
+                    <th scope="col ">Original url</th>
+                    <th scope="col ">Expiry Date</th>
+									</tr>
+								</thead>
+								
                 <tbody id='tbody'>
-
                   <% for (let clip of userClips) {%>
                     <tr id="table-body">
                       <td>
@@ -94,15 +94,9 @@
                         </a>
                       </td>
                       <td>
-                        <%=clip.long_url%>
-                      </td>
-                      <td>
                         <a class="trimmed" target="_blank" href="/<%=clip.urlCode%>">
                           <%=clip.clipped_url%>
                         </a>
-                      </td>
-                      <td id="col-expiry">
-                        <%=clip.expiry_date ? new Date(clip.expiry_date).toDateString() : '—' %>
                       </td>
                       <td class="action-btn">
                         <a href="javascript:void(0);" class="fas fa-copy fa-lg copy" data="<%=clip.clipped_url%>" data-tippy-placement="top" data-tippy-content="COPIED!">
@@ -116,6 +110,12 @@
                           <a class="" href="https://twitter.com/intent/tweet?text=<%=clip.clipped_url+' '+ clipText%>" data-size="large" target="_blank">
                             <i class="fab fa-twitter fa-lg"></i>
                           </a>
+                      </td>
+                      <td>
+                        <a class="long-url" href="<%=clip.long_url%>"><%=clip.long_url%></a>
+                      </td>
+                      <td id="col-expiry">
+                        <%=clip.expiry_date ? new Date(clip.expiry_date).toDateString() : '—' %>
                       </td>
                     </tr>
                     <%}%>
